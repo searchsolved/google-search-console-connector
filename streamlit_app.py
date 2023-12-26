@@ -1,22 +1,19 @@
-# basic imports
-import streamlit as st
-import pandas as pd
+# Standard library imports
+import asyncio
+import os
 
-# imports for search console libraries
-import searchconsole
+# Related third-party imports
+import pandas as pd
+import streamlit as st
 from apiclient import discovery
 from google_auth_oauthlib.flow import Flow
-
-# imports for aggrid
-from st_aggrid import AgGrid
-from st_aggrid import AgGrid
+from st_aggrid import AgGrid, GridUpdateMode, DataReturnMode
 from st_aggrid.grid_options_builder import GridOptionsBuilder
 from st_aggrid.shared import JsCode
-from st_aggrid import GridUpdateMode, DataReturnMode
-
-# all other imports
-import os
 from streamlit_elements import Elements
+
+# Local application/library specific imports
+import searchconsole
 
 ###############################################################################
 
@@ -40,8 +37,7 @@ RowCap = 25000
 tab1, tab2 = st.tabs(["Main", "About"])
 
 with tab1:
-
-    st.sidebar.image("logo.png", width=290)
+    # st.sidebar.image("logo.png", width=290)
 
     st.sidebar.markdown("")
 
@@ -50,6 +46,7 @@ with tab1:
     # Convert secrets from the TOML file to strings
     clientSecret = str(st.secrets["installed"]["client_secret"])
     clientId = str(st.secrets["installed"]["client_id"])
+    redirectUri = str(st.secrets["installed"]["redirect_uris"][0])
 
     st.markdown("")
 
@@ -59,9 +56,13 @@ with tab1:
     if "my_token_received" not in st.session_state:
         st.session_state["my_token_received"] = False
 
+
     def charly_form_callback():
         # st.write(st.session_state.my_token_input)
         st.session_state.my_token_received = True
+        code = st.experimental_get_query_params()["code"][0]
+        st.session_state.my_token_input = code
+
 
     with st.sidebar.form(key="my_form"):
 
@@ -77,7 +78,11 @@ with tab1:
             start_icon=mt.icons.exit_to_app,
             onclick="none",
             style={"color": "#FFFFFF", "background": "#FF4B4B"},
-            href="https://accounts.google.com/o/oauth2/auth?response_type=code&client_id=686079794781-0bt8ot3ie81iii7i17far5vj4s0p20t7.apps.googleusercontent.com&redirect_uri=urn%3Aietf%3Awg%3Aoauth%3A2.0%3Aoob&scope=https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fwebmasters.readonly&state=vryYlMrqKikWGlFVwqhnMpfqr1HMiq&prompt=consent&access_type=offline",
+            href="https://accounts.google.com/o/oauth2/auth?response_type=code&client_id="
+                 + clientId
+                 + "&redirect_uri="
+                 + redirectUri
+                 + "&scope=https://www.googleapis.com/auth/webmasters.readonly&access_type=offline&prompt=consent",
         )
 
         mt.show(key="687")
@@ -95,21 +100,36 @@ with tab1:
         flow = Flow.from_client_config(
             credentials,
             scopes=["https://www.googleapis.com/auth/webmasters.readonly"],
-            redirect_uri="urn:ietf:wg:oauth:2.0:oob",
+            redirect_uri=redirectUri,
         )
 
         auth_url, _ = flow.authorization_url(prompt="consent")
 
-        code = st.text_input(
-            "Google Oauth token",
-            key="my_token_input",
-            help="Sign in to your account via Google OAuth, then paste your OAuth token in the field below.",
-            type="password",
-        )
-
         submit_button = st.form_submit_button(
             label="Access GSC API", on_click=charly_form_callback
         )
+
+        st.write("")
+
+        with st.expander("How to access your GSC data?"):
+            st.markdown(
+                """
+            1. Click on the `Sign-in with Google` button
+            2. You will be redirected to the Google Oauth screen
+            3. Choose the Google account you want to use & click `Continue`
+            5. You will be redirected back to this app.
+            6. Click on the "Access GSC API" button.
+            7. Voilà! 🙌 
+            """
+            )
+            st.write("")
+
+        with st.expander("Check your Oauth token"):
+            code = st.text_input(
+                "",
+                key="my_token_input",
+                label_visibility="collapsed",
+            )
 
         st.write("")
 
@@ -348,9 +368,9 @@ with tab1:
             if (nested_dimension != "none") and (nested_dimension_2 != "none"):
 
                 if (
-                    (dimension == nested_dimension)
-                    or (dimension == nested_dimension_2)
-                    or (nested_dimension == nested_dimension_2)
+                        (dimension == nested_dimension)
+                        or (dimension == nested_dimension_2)
+                        or (nested_dimension == nested_dimension_2)
                 ):
                     st.warning(
                         "🚨 Dimension and nested dimensions cannot be the same, please make sure you choose unique dimensions."
@@ -388,6 +408,7 @@ with tab1:
                 account = searchconsole.account.Account(service, credentials)
                 site_list = service.sites().list().execute()
                 return account, site_list
+
 
             account, site_list = get_account_site_list_and_webproperty(
                 st.session_state.my_token_input
@@ -462,7 +483,7 @@ with tab1:
                         search_type = st.selectbox(
                             "Search type",
                             ("web", "news", "video", "googleNews", "image"),
-                        help="""
+                            help="""
                         Specify the search type you want to retrieve
                         -   **Web**: Results that appear in the All tab. This includes any image or video results shown in the All results tab.
                         -   **Image**: Results that appear in the Images search results tab.
@@ -470,7 +491,6 @@ with tab1:
                         -   **News**: Results that show in the News search results tab.
 
                         """,
-
                         )
 
                     with col2:
@@ -624,9 +644,9 @@ with tab1:
                 if (nested_dimension != "none") and (nested_dimension_2 != "none"):
 
                     if (
-                        (dimension == nested_dimension)
-                        or (dimension == nested_dimension_2)
-                        or (nested_dimension == nested_dimension_2)
+                            (dimension == nested_dimension)
+                            or (dimension == nested_dimension_2)
+                            or (nested_dimension == nested_dimension_2)
                     ):
                         st.warning(
                             "🚨 Dimension and nested dimensions cannot be the same, please make sure you choose unique dimensions."
@@ -648,55 +668,59 @@ with tab1:
                 else:
                     pass
 
+
             def get_search_console_data(webproperty):
                 if webproperty is not None:
                     report = (
                         webproperty.query.search_type(search_type)
-                        .range("today", days=timescale)
-                        .dimension(dimension)
-                        .filter(filter_page_or_query, filter_keyword, filter_type)
-                        .filter(filter_page_or_query2, filter_keyword2, filter_type2)
-                        .filter(filter_page_or_query3, filter_keyword3, filter_type3)
-                        .limit(RowCap)
-                        .get()
-                        .to_dataframe()
+                            .range("today", days=timescale)
+                            .dimension(dimension)
+                            .filter(filter_page_or_query, filter_keyword, filter_type)
+                            .filter(filter_page_or_query2, filter_keyword2, filter_type2)
+                            .filter(filter_page_or_query3, filter_keyword3, filter_type3)
+                            .limit(RowCap)
+                            .get()
+                            .to_dataframe()
                     )
                     return report
                 else:
                     st.warning("No webproperty found")
                     st.stop()
 
+
             def get_search_console_data_nested(webproperty):
                 if webproperty is not None:
                     # query = webproperty.query.range(start="today", days=days).dimension("query")
                     report = (
                         webproperty.query.search_type(search_type)
-                        .range("today", days=timescale)
-                        .dimension(dimension, nested_dimension)
-                        .filter(filter_page_or_query, filter_keyword, filter_type)
-                        .filter(filter_page_or_query2, filter_keyword2, filter_type2)
-                        .filter(filter_page_or_query3, filter_keyword3, filter_type3)
-                        .limit(RowCap)
-                        .get()
-                        .to_dataframe()
+                            .range("today", days=timescale)
+                            .dimension(dimension, nested_dimension)
+                            .filter(filter_page_or_query, filter_keyword, filter_type)
+                            .filter(filter_page_or_query2, filter_keyword2, filter_type2)
+                            .filter(filter_page_or_query3, filter_keyword3, filter_type3)
+                            .limit(RowCap)
+                            .get()
+                            .to_dataframe()
                     )
                     return report
+
 
             def get_search_console_data_nested_2(webproperty):
                 if webproperty is not None:
                     # query = webproperty.query.range(start="today", days=days).dimension("query")
                     report = (
                         webproperty.query.search_type(search_type)
-                        .range("today", days=timescale)
-                        .dimension(dimension, nested_dimension, nested_dimension_2)
-                        .filter(filter_page_or_query, filter_keyword, filter_type)
-                        .filter(filter_page_or_query2, filter_keyword2, filter_type2)
-                        .filter(filter_page_or_query3, filter_keyword3, filter_type3)
-                        .limit(RowCap)
-                        .get()
-                        .to_dataframe()
+                            .range("today", days=timescale)
+                            .dimension(dimension, nested_dimension, nested_dimension_2)
+                            .filter(filter_page_or_query, filter_keyword, filter_type)
+                            .filter(filter_page_or_query2, filter_keyword2, filter_type2)
+                            .filter(filter_page_or_query3, filter_keyword3, filter_type3)
+                            .limit(RowCap)
+                            .get()
+                            .to_dataframe()
                     )
                     return report
+
 
             # Here are some conditions to check which function to call
 
@@ -767,6 +791,7 @@ with tab1:
                 def convert_df(df):
                     return df.to_csv().encode("utf-8")
 
+
                 csv = convert_df(df)
 
                 st.download_button(
@@ -819,7 +844,6 @@ with tab1:
         )
 
 with tab2:
-
     st.write("")
     st.write("")
 
@@ -851,6 +875,6 @@ with tab2:
 
     #### Known bugs
     * You can filter any dimension in the table even if the dimension hasn't been pre-selected. I'm working on a fix for this.
-    
+
     """
     )
